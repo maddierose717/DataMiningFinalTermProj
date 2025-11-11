@@ -139,3 +139,161 @@ class SVMFromScratch:
         else:
             decisions = np.array([clf._decision_function(X) for clf in self.classifiers])
             return self.classes_[np.argmax(decisions, axis=0)]
+
+
+# ============================================================================
+# Algorithm 2: Random Forest (From Scratch)
+# ============================================================================
+
+class DecisionTreeFromScratch:
+    """Decision Tree classifier implemented from scratch."""
+    
+    def __init__(self, max_depth=None, min_samples_split=2, max_features=None):
+        self.max_depth = max_depth
+        self.min_samples_split = min_samples_split
+        self.max_features = max_features
+        self.tree = None
+        
+    def _gini_impurity(self, y):
+        """Calculate Gini impurity."""
+        classes, counts = np.unique(y, return_counts=True)
+        probabilities = counts / len(y)
+        return 1 - np.sum(probabilities ** 2)
+    
+    def _split_data(self, X, y, feature_idx, threshold):
+        """Split data based on a feature and threshold."""
+        left_mask = X[:, feature_idx] <= threshold
+        right_mask = ~left_mask
+        return (X[left_mask], y[left_mask]), (X[right_mask], y[right_mask])
+    
+    def _find_best_split(self, X, y, feature_indices):
+        """Find the best feature and threshold to split on."""
+        best_gini = float('inf')
+        best_feature = None
+        best_threshold = None
+        
+        for feature_idx in feature_indices:
+            thresholds = np.unique(X[:, feature_idx])
+            
+            for threshold in thresholds:
+                (X_left, y_left), (X_right, y_right) = self._split_data(X, y, feature_idx, threshold)
+                
+                if len(y_left) == 0 or len(y_right) == 0:
+                    continue
+                
+                n = len(y)
+                gini = (len(y_left) / n) * self._gini_impurity(y_left) + \
+                       (len(y_right) / n) * self._gini_impurity(y_right)
+                
+                if gini < best_gini:
+                    best_gini = gini
+                    best_feature = feature_idx
+                    best_threshold = threshold
+        
+        return best_feature, best_threshold
+    
+    def _build_tree(self, X, y, depth=0):
+        """Recursively build the decision tree."""
+        n_samples, n_features = X.shape
+        n_classes = len(np.unique(y))
+        
+        if depth >= self.max_depth or n_samples < self.min_samples_split or n_classes == 1:
+            leaf_value = np.bincount(y.astype(int)).argmax()
+            return {'leaf': True, 'value': leaf_value}
+        
+        if self.max_features is not None:
+            feature_indices = np.random.choice(n_features, 
+                                             min(self.max_features, n_features), 
+                                             replace=False)
+        else:
+            feature_indices = np.arange(n_features)
+        
+        best_feature, best_threshold = self._find_best_split(X, y, feature_indices)
+        
+        if best_feature is None:
+            leaf_value = np.bincount(y.astype(int)).argmax()
+            return {'leaf': True, 'value': leaf_value}
+        
+        (X_left, y_left), (X_right, y_right) = self._split_data(X, y, best_feature, best_threshold)
+        
+        left_subtree = self._build_tree(X_left, y_left, depth + 1)
+        right_subtree = self._build_tree(X_right, y_right, depth + 1)
+        
+        return {
+            'leaf': False,
+            'feature': best_feature,
+            'threshold': best_threshold,
+            'left': left_subtree,
+            'right': right_subtree
+        }
+    
+    def fit(self, X, y):
+        """Build decision tree."""
+        self.tree = self._build_tree(X, y)
+        return self
+    
+    def _predict_sample(self, x, tree):
+        """Predict class for a single sample."""
+        if tree['leaf']:
+            return tree['value']
+        
+        if x[tree['feature']] <= tree['threshold']:
+            return self._predict_sample(x, tree['left'])
+        else:
+            return self._predict_sample(x, tree['right'])
+    
+    def predict(self, X):
+        """Predict class labels for samples in X."""
+        return np.array([self._predict_sample(x, self.tree) for x in X])
+
+
+class RandomForestFromScratch:
+    """Random Forest classifier implemented from scratch."""
+    
+    def __init__(self, n_estimators=100, max_depth=10, min_samples_split=2, 
+                 max_features='sqrt', random_state=None):
+        self.n_estimators = n_estimators
+        self.max_depth = max_depth
+        self.min_samples_split = min_samples_split
+        self.max_features = max_features
+        self.random_state = random_state
+        self.trees = []
+        
+    def fit(self, X, y):
+        """Build a forest of decision trees."""
+        if self.random_state is not None:
+            np.random.seed(self.random_state)
+        
+        n_samples, n_features = X.shape
+        
+        if self.max_features == 'sqrt':
+            max_features = int(np.sqrt(n_features))
+        elif self.max_features == 'log2':
+            max_features = int(np.log2(n_features))
+        else:
+            max_features = n_features
+        
+        self.trees = []
+        for _ in range(self.n_estimators):
+            indices = np.random.choice(n_samples, n_samples, replace=True)
+            X_bootstrap = X[indices]
+            y_bootstrap = y[indices]
+            
+            tree = DecisionTreeFromScratch(
+                max_depth=self.max_depth,
+                min_samples_split=self.min_samples_split,
+                max_features=max_features
+            )
+            tree.fit(X_bootstrap, y_bootstrap)
+            self.trees.append(tree)
+        
+        return self
+    
+    def predict(self, X):
+        """Predict class labels using majority voting."""
+        predictions = np.array([tree.predict(X) for tree in self.trees])
+        final_predictions = []
+        for i in range(X.shape[0]):
+            votes = predictions[:, i]
+            final_predictions.append(np.bincount(votes.astype(int)).argmax())
+        return np.array(final_predictions)
