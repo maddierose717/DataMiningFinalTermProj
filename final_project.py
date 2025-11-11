@@ -297,3 +297,37 @@ class RandomForestFromScratch:
             votes = predictions[:, i]
             final_predictions.append(np.bincount(votes.astype(int)).argmax())
         return np.array(final_predictions)
+
+
+# ============================================================================
+# K-Fold Cross-Validation (From Scratch)
+# ============================================================================
+
+def kfold_cross_validation(X, y, model_class, model_params, n_splits=10):
+    """Perform K-fold cross-validation from scratch."""
+    n_samples = len(y)
+    indices = np.arange(n_samples)
+    np.random.seed(42)
+    np.random.shuffle(indices)
+    
+    fold_size = n_samples // n_splits
+    scores = []
+    
+    for fold in range(n_splits):
+        test_start = fold * fold_size
+        test_end = test_start + fold_size if fold < n_splits - 1 else n_samples
+        
+        test_indices = indices[test_start:test_end]
+        train_indices = np.concatenate([indices[:test_start], indices[test_end:]])
+        
+        X_train, X_test = X[train_indices], X[test_indices]
+        y_train, y_test = y[train_indices], y[test_indices]
+        
+        model = model_class(**model_params)
+        model.fit(X_train, y_train)
+        predictions = model.predict(X_test)
+        
+        accuracy = np.mean(predictions == y_test)
+        scores.append(accuracy)
+    
+    return np.array(scores)
