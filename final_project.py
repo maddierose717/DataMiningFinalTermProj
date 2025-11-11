@@ -331,3 +331,68 @@ def kfold_cross_validation(X, y, model_class, model_params, n_splits=10):
         scores.append(accuracy)
     
     return np.array(scores)
+
+
+# ============================================================================
+# Main Execution
+# ============================================================================
+
+def run_algorithms(X, y, dataset_name):
+    """Run both algorithms on a dataset with 10-fold cross-validation."""
+    print(f"\nDataset: {dataset_name}")
+    print(f"Samples: {X.shape[0]}, Features: {X.shape[1]}, Classes: {len(np.unique(y))}")
+    print("-"*50)
+    
+    # Scale data for SVM
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+    
+    # SVM with RBF kernel
+    print("Running SVM with RBF kernel...")
+    svm_params = {'C': 1.0, 'gamma': 'scale', 'max_iter': 1000, 'tol': 1e-3}
+    svm_scores = kfold_cross_validation(X_scaled, y, SVMFromScratch, svm_params, n_splits=10)
+    print(f"SVM (RBF):        {svm_scores.mean():.4f} ± {svm_scores.std():.4f}")
+    
+    # Random Forest
+    print("Running Random Forest...")
+    rf_params = {'n_estimators': 100, 'max_depth': 10, 'max_features': 'sqrt', 'random_state': 42}
+    rf_scores = kfold_cross_validation(X, y, RandomForestFromScratch, rf_params, n_splits=10)
+    print(f"Random Forest:    {rf_scores.mean():.4f} ± {rf_scores.std():.4f}")
+    
+    return svm_scores.mean(), rf_scores.mean()
+
+
+if __name__ == "__main__":
+    print("="*50)
+    print("Madison Rose Lucas (MRL58)")
+    print("CS 634 Final Project - Option 1")
+    print("Algorithms Implemented From Scratch")
+    print("="*50)
+    
+    results = {}
+    
+    # Dataset 1: Iris
+    print("\n" + "="*50)
+    iris = load_iris()
+    svm1, rf1 = run_algorithms(iris.data, iris.target, "Iris")
+    results['Iris'] = {'SVM': svm1, 'RF': rf1}
+    
+    # Dataset 2: Wine  
+    print("\n" + "="*50)
+    wine = load_wine()
+    svm2, rf2 = run_algorithms(wine.data, wine.target, "Wine")
+    results['Wine'] = {'SVM': svm2, 'RF': rf2}
+    
+    # Dataset 3: Breast Cancer
+    print("\n" + "="*50)
+    cancer = load_breast_cancer()
+    svm3, rf3 = run_algorithms(cancer.data, cancer.target, "Breast Cancer")
+    results['Breast Cancer'] = {'SVM': svm3, 'RF': rf3}
+    
+    # Summary
+    print("\n" + "="*50)
+    print("SUMMARY")
+    print("="*50)
+    for dataset, scores in results.items():
+        print(f"{dataset:15s}: SVM={scores['SVM']:.4f}, RF={scores['RF']:.4f}")
+    print("="*50)
